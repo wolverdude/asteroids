@@ -1,14 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
+	<title>Asteroids!</title>
 	<script src="keymaster.min.js"></script>
 	<style>
-		body {background-image:
+		#gameCanvas {background-image:
 			url('http://fwallpapers.com/files/images/outer-space_8.jpg');}
 	</style>
 </head>
 <body>
-	<canvas width="500" height="500" id="game"></canvas>
+	<canvas width="200" height="200" id="gameCanvas"></canvas>
+	<br />
+	<p id="messageArea">Click to play Asteroids!</p>
+
+	<label for="numAsteroids">Number of Asteroids</label>
+	<input type="number" value="15" id="numAsteroids">
+
+	<button id="playButton" onclick="Asteroids.game.start(15)">Play</button>
+	<p>Asteroids Destroyed: <span id="scoreArea">0</span></p>
+
 	<script type="text/javascript" src="app.js"></script>
 </body>
 </html>

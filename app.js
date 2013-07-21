@@ -1,5 +1,9 @@
 var Asteroids = (function() {
 
+	//==================
+	// persistent state
+	//==================
+
 	const CANVAS = document.getElementById('gameCanvas')
 	CANVAS.width = window.innerWidth - 20
 	CANVAS.height = window.innerHeight - 150
@@ -13,6 +17,22 @@ var Asteroids = (function() {
 	const MAX_X = CANVAS.width + 15
 	const MAX_Y = CANVAS.height + 15
 
+	//=============
+	// inheritance
+	//=============
+
+	function Surrogate(child) {
+		this.constructor = child;
+	}
+
+	function extend(child, parent) {
+		Surrogate.prototype = parent.prototype;
+		child.prototype = new Surrogate(child);
+	}
+
+	//============
+	// Game class
+	//============
 
 	function Game() {
 		this.ctx = CANVAS.getContext("2d");
@@ -30,28 +50,32 @@ var Asteroids = (function() {
 		this.stop("Press 'up' to move forward,\n'down' to move backward,\n'left' or 'right' to rotate your spacecraft,\n or 'spacebar' to fire.")
 		SCORE.innerHTML = "0"
 
+		// give focus to CANVAS
+		BUTTON.blur();
+		CANVAS.focus();
+  
 		// set game state
 		this.asteroids = [];
 		this.bullets = [];
-		this.populate.call(this, numAsteroids);
+		this.populate(numAsteroids);
 
 		// set update loop
 		var that = this;
 		that.updateLoop = window.setInterval(function() {
 			// respond to keyboard input
-			if(key.isPressed("up")) { that.ship.power.call(that.ship, 0.4) };
-			if(key.isPressed("down")) { that.ship.power.call(that.ship, -0.4) };
+			if(key.isPressed("up")) { that.ship.power(0.4) };
+			if(key.isPressed("down")) { that.ship.power(-0.4) };
 			if(key.isPressed("left")) {
-				that.ship.rotate.call(that.ship, -Math.PI / 16)
+				that.ship.rotate(-Math.PI / 16)
 			};
 			if(key.isPressed("right")) {
-				that.ship.rotate.call(that.ship, Math.PI / 16)
+				that.ship.rotate(Math.PI / 16)
 			};
-			if(key.isPressed("space")) { that.ship.fireBullet.call(that.ship, that) };
+			if(key.isPressed("space")) { that.ship.fireBullet(that) };
 
 			// update state
-			that.update.call(that);
-			that.draw.call(that);
+			that.update();
+			that.draw();
 		}, 30);
 	}
 
@@ -73,30 +97,30 @@ var Asteroids = (function() {
 	Game.prototype.update = function() {
 		var that = this
 		that.asteroids.forEach( function(asteroid) {
-			asteroid.updatePos.call(asteroid);
+			asteroid.updatePos();
 			asteroid.rotate()
-			if (asteroid.offScreen.call(asteroid)) {
-				asteroid.wrap.call(asteroid);
+			if (asteroid.offScreen()) {
+				asteroid.wrap();
 			}
 		});
-		that.ship.updatePos.call(that.ship);
-		if (that.ship.offScreen.call(that.ship)) {
-			that.ship.wrap.call(that.ship);
+		that.ship.updatePos();
+		if (that.ship.offScreen()) {
+			that.ship.wrap();
 		}
 		that.bullets = that.bullets.filter( function(bullet) {
-			bullet.updatePos.call(bullet);
-			if (bullet.isHit.call(bullet, that.asteroids, that)) {
+			bullet.updatePos();
+			if (bullet.isHit(that.asteroids, that)) {
 				return false;
 			}
-			if (bullet.offScreen.call(bullet)) {
+			if (bullet.offScreen()) {
 				return false;
 			}
 			return true
 		});
-		if (that.ship.isHit.call(that.ship, that.asteroids, that)) {
-			that.stop.call(this, "You Lost!");
+		if (that.ship.isHit(that.asteroids, that)) {
+			that.stop("You Lost!");
 		} else if (that.asteroids.length === 0) {
-			that.stop.call(this, "You Won!");
+			that.stop("You Won!");
 		}
 	}
 
@@ -113,6 +137,10 @@ var Asteroids = (function() {
 			bullets.draw(that.ctx);
 		});
 	}
+
+	//====================
+	// MovingObject class
+	//====================
 
 	function MovingObject(pos, vel, rad) {
 		this.pos = pos;
@@ -147,6 +175,25 @@ var Asteroids = (function() {
 		}
 	}
 
+	MovingObject.prototype.draw = function(ctx) {
+		ctx.beginPath();
+
+		var lastVertex = this.vertices[this.vertices.length - 1]
+		ctx.moveTo(lastVertex.x, lastVertex.y)
+
+		var that = this;
+		this.vertices.forEach(function(vertex) {
+			var pos = that._arcPos(vertex)
+			ctx.lineTo(pos.x, pos.y);
+		});
+
+		ctx.closePath();
+
+		ctx.strokeStyle = "white"
+		ctx.lineWidth = 2;
+		ctx.stroke();
+	}
+
 	MovingObject.prototype.isHit = function(asteroids, game) {
 		that = this
 		var len = asteroids.length
@@ -169,30 +216,49 @@ var Asteroids = (function() {
 		return {x: x, y: y}
 	}
 
-	function MovingObjectSurrogate() {
-		this.constructor = Asteroid;
-	}
-	MovingObjectSurrogate.prototype = MovingObject.prototype;
+	//================
+	// Asteroid class
+	//================
 
-	function Asteroid(pos, vel, rad) {
+	function Asteroid(pos, vel, rad, rotVel, vertices) {
 		MovingObject.call(this, pos, vel, rad);
+		this.rot = 0
+		this.rotVel = (rotVel || 0);
+		this.vertices = (vertices || []);
 	}
+
+	extend(Asteroid, MovingObject);
 
 	Asteroid.randomAsteroid = function() {
 		pos = Asteroid.randomEdgePos()
+
 		var vel = {
 			dx: 5 * (Math.random() * 2 - 1),
 			dy: 5 * (Math.random() * 2 - 1)
 		}
-		asteroid = new Asteroid(pos, vel, 15)
-		asteroid.rotVel = (Math.random() - 0.5) / 2
-		return asteroid
+
+		var rad = Math.random() * 25 + 5
+
+		var rotVel = (Math.random() - 0.5) / 4;
+
+		var vertices = [];
+		var numVertices = Math.random() * 10 + 10
+
+		for (var i=0; i < numVertices; i++) {
+			var vertex = Math.PI * (Math.random() * 2 - 1);
+			vertices.push(vertex);
+		}
+		vertices = vertices.sort(function(a, b) { return (a < b) });
+
+		var asteroid = new Asteroid(pos, vel, rad, rotVel, vertices);
+
+		return asteroid;
 	}
 
 	Asteroid.randomEdgePos = function() {
 		var x, y, edges = [MIN_X, MAX_X, MIN_Y, MAX_Y];
 
-		index = Math.floor(4 * Math.random())
+		var index = Math.floor(4 * Math.random())
 		index < 2 ? x = edges[index] : y = edges[index];
 
 		x	= x || (MAX_X - MIN_X) * Math.random();
@@ -200,8 +266,6 @@ var Asteroids = (function() {
 
 		return {x: x, y: y};
 	}
-
-	Asteroid.prototype = new MovingObjectSurrogate();
 
 	Asteroid.prototype.rotate = function() {
 		this.rot += this.rotVel
@@ -212,37 +276,9 @@ var Asteroids = (function() {
 		}
 	}
 
-	Asteroid.prototype.draw = function(ctx) {
-		ctx.beginPath();
-
-		var vert1 = this._arcPos(0)
-		var vert2 = this._arcPos(0.9)
-		var vert3 = this._arcPos(1.3)
-		var vert4 = this._arcPos(2)
-		var vert5 = this._arcPos(-3)
-		var vert6 = this._arcPos(-1.9)
-		var vert7 = this._arcPos(-1.2)
-
-		ctx.moveTo(vert1['x'], vert1['y']);
-		ctx.lineTo(vert2['x'], vert2['y']);
-		ctx.lineTo(vert3['x'], vert3['y']);
-		ctx.lineTo(vert4['x'], vert4['y']);
-		ctx.lineTo(vert5['x'], vert5['y']);
-		ctx.lineTo(vert6['x'], vert6['y']);
-		ctx.lineTo(vert7['x'], vert7['y']);
-		ctx.lineTo(vert1['x'], vert1['y']);
-
-		ctx.closePath();
-
-		ctx.strokeStyle = "white"
-		ctx.lineWidth = 2;
-		ctx.stroke();
-	}
-
-	function MovingObjectSurrogate() {
-		this.constructor = Ship;
-	}
-	MovingObjectSurrogate.prototype = MovingObject.prototype;
+	//============
+	// Ship class
+	//============
 
 	function Ship() {
 		var pos = {
@@ -256,9 +292,10 @@ var Asteroids = (function() {
 		};
 
 		MovingObject.call(this, pos, vel, 10);
+		this.vertices = [-2.5, 0, 2.5]
 	}
 
-	Ship.prototype = new MovingObjectSurrogate()
+	extend(Ship, MovingObject);
 
 	Ship.prototype.rotate = function(d0) {
 		this.rot += d0
@@ -283,29 +320,9 @@ var Asteroids = (function() {
 		};
 	}
 
-	Ship.prototype.draw = function(ctx) {
-		ctx.beginPath();
-
-		var vert1 = this._arcPos(0)
-		var vert2 = this._arcPos(2.5)
-		var vert3 = this._arcPos(-2.5)
-
-		ctx.moveTo(vert1['x'], vert1['y']);
-		ctx.lineTo(vert2['x'], vert2['y']);
-		ctx.lineTo(vert3['x'], vert3['y']);
-		ctx.lineTo(vert1['x'], vert1['y']);
-
-		ctx.closePath();
-
-		ctx.strokeStyle = "white"
-		ctx.lineWidth = 2;
-		ctx.stroke();
-	}
-
-	function MovingObjectSurrogate() {
-		this.constructor = Bullet;
-	}
-	MovingObjectSurrogate.prototype = MovingObject.prototype;
+	//==============
+	// Bullet class
+	//==============
 
 	function Bullet(basePos, baseVel, rot) {
 		var pos = {
@@ -321,7 +338,7 @@ var Asteroids = (function() {
 		MovingObject.call(this, pos, vel, 2);
 	}
 
-	Bullet.prototype = new MovingObjectSurrogate()
+	extend(Bullet, MovingObject);
 
 	Bullet.prototype.draw = function(ctx) {
 		ctx.fillStyle = "white"

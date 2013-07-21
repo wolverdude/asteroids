@@ -259,15 +259,17 @@ var Asteroids = (function() {
 	}
 
 	Asteroid.randomEdgePos = function() {
-		var x, y, edges = [MIN_POS.x, MAX_POS.x, MIN_POS.y, MAX_POS.y];
+		var pos = {
+			x: (MAX_POS.x - MIN_POS.x) * Math.random(),
+			y: (MAX_POS.y - MIN_POS.y) * Math.random()
+		};
 
-		var index = Math.floor(4 * Math.random());
-		index < 2 ? x = edges[index] : y = edges[index];
+		var halfPerim = MAX_POS.x + MAX_POS.y;
+		var coord = (Math.random() * halfPerim < MAX_POS.x) ? 'y' : 'x';
 
-		(x === undefined) && (x = (MAX_POS.x - MIN_POS.x) * Math.random());
-		(y === undefined) && (y = (MAX_POS.y - MIN_POS.y) * Math.random());
+		pos[coord] = (Math.random() < 0.5) ? MIN_POS[coord] : MAX_POS[coord];
 
-		return {x: x, y: y};
+		return pos;
 	}
 
 	Asteroid.prototype.rotate = function() {
@@ -317,8 +319,10 @@ var Asteroids = (function() {
 
 	Ship.prototype.fireBullet = function(game) {
 		if (this.canFire) {
+			var pos = this._arcPos(this.vertices[1]);
+
 			var that = this;
-			game.bullets.push(new Bullet(that.pos, that.vel, that.rot));
+			game.bullets.push(new Bullet(pos, that.vel, that.rot));
 			if (!game.rapidFire) {
 				that.canFire = false;
 				window.setTimeout(function() { that.canFire = true }, 250);

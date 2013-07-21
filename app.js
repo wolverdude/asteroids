@@ -38,7 +38,7 @@ var Asteroids = (function() {
 
 	Game.prototype.start = function() {
 		// get number of asteroids
-		var numAsteroids = ASTEROIDS.value.valueOf()
+		var numAsteroids = ASTEROIDS.value;
 		if (!numAsteroids || numAsteroids < 1 || numAsteroids > 500) {
 			MESSAGE.innerHTML = 'You can do better than that!'
 			return
@@ -145,14 +145,13 @@ var Asteroids = (function() {
 	// MovingObject class
 	//====================
 
-	function MovingObject(pos, vel, rad) {
+	function MovingObject(pos, vel, rad, vertices, rot, rotVel) {
 		this.pos = pos;
 		this.vel = vel;
 		this.rad = rad;
-
-		var rot = Math.atan( this.vel['dy'] / this.vel['dx'] )
-		if (rot !== rot) rot = -(Math.PI / 2)
-		this.rot = rot
+		this.vertices = vertices || [];
+		this.rot = rot || -(Math.PI / 2);
+		this.rotVel = rotVel || 0;
 	}
 
 	MovingObject.prototype.updatePos = function() {
@@ -223,11 +222,8 @@ var Asteroids = (function() {
 	// Asteroid class
 	//================
 
-	function Asteroid(pos, vel, rad, rotVel, vertices) {
-		MovingObject.call(this, pos, vel, rad);
-		this.rot = 0
-		this.rotVel = (rotVel || 0);
-		this.vertices = (vertices || []);
+	function Asteroid() {
+		MovingObject.apply(this, arguments);
 	}
 
 	extend(Asteroid, MovingObject);
@@ -235,9 +231,11 @@ var Asteroids = (function() {
 	Asteroid.randomAsteroid = function() {
 		var pos = Asteroid.randomEdgePos()
 
+		var rot = Math.PI * (Math.random() * 2 - 1)
+
 		var vel = {
-			dx: 5 * (Math.random() * 2 - 1),
-			dy: 5 * (Math.random() * 2 - 1)
+			dx: 5 * (Math.random() * 2 - 1) * Math.cos(rot),
+			dy: 5 * (Math.random() * 2 - 1) * Math.sin(rot)
 		}
 
 		var rad = Math.random() * 40 + 5
@@ -253,7 +251,7 @@ var Asteroids = (function() {
 		}
 		vertices = vertices.sort(function(a, b) { return (a < b) });
 
-		var asteroid = new Asteroid(pos, vel, rad, rotVel, vertices);
+		var asteroid = new Asteroid(pos, vel, rad, vertices, rot, rotVel);
 
 		return asteroid;
 	}
@@ -264,6 +262,7 @@ var Asteroids = (function() {
 			y: (MAX_POS.y - MIN_POS.y) * Math.random()
 		};
 
+		// proportionally pick x or y to be the edge coord
 		var halfPerim = MAX_POS.x + MAX_POS.y;
 		var coord = (Math.random() * halfPerim < MAX_POS.x) ? 'y' : 'x';
 
@@ -296,8 +295,7 @@ var Asteroids = (function() {
 			dy: 0
 		};
 
-		MovingObject.call(this, pos, vel, 10);
-		this.vertices = [-2.5, 0, 2.5]
+		MovingObject.call(this, pos, vel, 15, [-2.5, 0, 2.5]);
 		this.canFire = true;
 	}
 
@@ -343,28 +341,13 @@ var Asteroids = (function() {
 		var vel = {
 			dx: baseVel['dx'] + 5 * Math.cos(rot),
 			dy: baseVel['dy'] + 5 * Math.sin(rot)
-		};
+		}
 
-		MovingObject.call(this, pos, vel, 2);
+		MovingObject.call(this, pos, vel, 3, [0, Math.PI], rot);
 	}
 
 	extend(Bullet, MovingObject);
 
-	Bullet.prototype.draw = function(ctx) {
-		ctx.fillStyle = "white"
-		ctx.beginPath();
-
-		ctx.arc(
-			this.pos['x'],
-			this.pos['y'],
-			this.rad,
-			0,
-			2 * Math.PI,
-			false
-		);
-
-		ctx.fill();
-	}
 	return {
 		game: new Game()
 	};

@@ -12,10 +12,8 @@ var Asteroids = (function() {
 	const MESSAGE = document.getElementById('messageArea')
 	const SCORE = document.getElementById('scoreArea')
 	const ASTEROIDS = document.getElementById('numAsteroids')
-	const MIN_X = -15
-	const MIN_Y = -15
-	const MAX_X = CANVAS.width + 15
-	const MAX_Y = CANVAS.height + 15
+	const MIN_POS = { x: 0, y:0 }
+	const MAX_POS = { x: CANVAS.width, y: CANVAS.height }
 
 	//=============
 	// inheritance
@@ -41,7 +39,7 @@ var Asteroids = (function() {
 	Game.prototype.start = function() {
 		// get number of asteroids
 		var numAsteroids = ASTEROIDS.value.valueOf()
-		if (!numAsteroids || numAsteroids < 1 || numAsteroids > 1000) {
+		if (!numAsteroids || numAsteroids < 1 || numAsteroids > 500) {
 			MESSAGE.innerHTML = 'You can do better than that!'
 			return
 		}
@@ -49,6 +47,12 @@ var Asteroids = (function() {
 		// end previous game if exists
 		this.stop("Press 'up' to move forward,\n'down' to move backward,\n'left' or 'right' to rotate your spacecraft,\n or 'spacebar' to fire.")
 		SCORE.innerHTML = "0"
+
+		// easter egg
+		if (numAsteroids == 500) {
+			this.rapidFire = true;
+			MESSAGE.innerHTML = 'Rapid-fire mode enabled. Good luck!';
+		}
 
 		// give focus to CANVAS
 		BUTTON.blur();
@@ -80,7 +84,7 @@ var Asteroids = (function() {
 	}
 
 	Game.prototype.stop = function(message) {
-		that = this;
+		var that = this;
 		clearInterval(that.updateLoop);
 		MESSAGE.innerHTML = message
 		BUTTON.innerHTML = "Play Again"
@@ -91,11 +95,10 @@ var Asteroids = (function() {
 			this.asteroids.push( Asteroid.randomAsteroid() );
 		}
 		this.ship = new Ship();
-		this.ship.canFire = true
 	}
 
 	Game.prototype.update = function() {
-		var that = this
+		var that = this;
 		that.asteroids.forEach( function(asteroid) {
 			asteroid.updatePos();
 			asteroid.rotate()
@@ -125,8 +128,8 @@ var Asteroids = (function() {
 	}
 
 	Game.prototype.draw = function() {
-		var that = this
-		that.ctx.clearRect(MIN_X, MIN_Y, MAX_X, MAX_Y);
+		var that = this;
+		that.ctx.clearRect(MIN_POS.x, MIN_POS.y, MAX_POS.x, MAX_POS.y);
 
 		that.ship.draw(that.ctx);
 		that.asteroids.forEach( function(asteroid) {
@@ -158,28 +161,28 @@ var Asteroids = (function() {
 	}
 
 	MovingObject.prototype.offScreen = function() {
-		return this.pos['x'] > MAX_X || this.pos['x'] < MIN_X
-		|| this.pos['y'] > MAX_Y || this.pos['y'] < MIN_Y;
+		return this.pos['x'] > MAX_POS.x || this.pos['x'] < MIN_POS.x
+		|| this.pos['y'] > MAX_POS.y || this.pos['y'] < MIN_POS.y;
 	}
 
 	MovingObject.prototype.wrap = function() {
-		if (this.pos['x'] > MAX_X) {
-			this.pos['x'] -= (MAX_X - MIN_X)
-		} else if (this.pos['x'] < MIN_X) {
-			this.pos['x'] += (MAX_X - MIN_X)
-		}
-		if (this.pos['y'] > MAX_Y) {
-			this.pos['y'] -= (MAX_Y - MIN_Y)
-		} else if (this.pos['y'] < MIN_Y) {
-			this.pos['y'] += (MAX_Y - MIN_Y)
-		}
+		var offset = this.rad * 2;
+
+		var that = this;
+		['x', 'y'].forEach(function(coord) {
+			if (that.pos[coord] > MAX_POS[coord] + that.rad) {
+				that.pos[coord] -= (MAX_POS[coord] - MIN_POS[coord] + offset)
+			} else if (that.pos[coord] < (MIN_POS[coord] - that.rad)) {
+				that.pos[coord] += (MAX_POS[coord] - MIN_POS[coord] + offset)
+			}
+		});
 	}
 
 	MovingObject.prototype.draw = function(ctx) {
 		ctx.beginPath();
 
-		var lastVertex = this.vertices[this.vertices.length - 1]
-		ctx.moveTo(lastVertex.x, lastVertex.y)
+		var lastVertex = this.vertices[this.vertices.length - 1];
+		ctx.moveTo(lastVertex.x, lastVertex.y);
 
 		var that = this;
 		this.vertices.forEach(function(vertex) {
@@ -189,14 +192,14 @@ var Asteroids = (function() {
 
 		ctx.closePath();
 
-		ctx.strokeStyle = "white"
+		ctx.strokeStyle = "white";
 		ctx.lineWidth = 2;
 		ctx.stroke();
 	}
 
 	MovingObject.prototype.isHit = function(asteroids, game) {
-		that = this
-		var len = asteroids.length
+		var that = this;
+		var len = asteroids.length;
 		var result = asteroids.filter(function(asteroid) {
 			var hit = Math.sqrt(
 				Math.pow(that.pos['x'] - asteroid.pos['x'], 2) +
@@ -230,14 +233,14 @@ var Asteroids = (function() {
 	extend(Asteroid, MovingObject);
 
 	Asteroid.randomAsteroid = function() {
-		pos = Asteroid.randomEdgePos()
+		var pos = Asteroid.randomEdgePos()
 
 		var vel = {
 			dx: 5 * (Math.random() * 2 - 1),
 			dy: 5 * (Math.random() * 2 - 1)
 		}
 
-		var rad = Math.random() * 25 + 5
+		var rad = Math.random() * 40 + 5
 
 		var rotVel = (Math.random() - 0.5) / 4;
 
@@ -256,13 +259,13 @@ var Asteroids = (function() {
 	}
 
 	Asteroid.randomEdgePos = function() {
-		var x, y, edges = [MIN_X, MAX_X, MIN_Y, MAX_Y];
+		var x, y, edges = [MIN_POS.x, MAX_POS.x, MIN_POS.y, MAX_POS.y];
 
-		var index = Math.floor(4 * Math.random())
+		var index = Math.floor(4 * Math.random());
 		index < 2 ? x = edges[index] : y = edges[index];
 
-		x	= x || (MAX_X - MIN_X) * Math.random();
-		y = y || (MAX_Y - MIN_Y) * Math.random();
+		(x === undefined) && (x = (MAX_POS.x - MIN_POS.x) * Math.random());
+		(y === undefined) && (y = (MAX_POS.y - MIN_POS.y) * Math.random());
 
 		return {x: x, y: y};
 	}
@@ -282,8 +285,8 @@ var Asteroids = (function() {
 
 	function Ship() {
 		var pos = {
-			x: ((MAX_X - MIN_X) / 2),
-			y: ((MAX_Y - MIN_Y) / 2)
+			x: ((MAX_POS.x - MIN_POS.x) / 2),
+			y: ((MAX_POS.y - MIN_POS.y) / 2)
 		};
 
 		var vel = {
@@ -293,6 +296,7 @@ var Asteroids = (function() {
 
 		MovingObject.call(this, pos, vel, 10);
 		this.vertices = [-2.5, 0, 2.5]
+		this.canFire = true;
 	}
 
 	extend(Ship, MovingObject);
@@ -313,10 +317,12 @@ var Asteroids = (function() {
 
 	Ship.prototype.fireBullet = function(game) {
 		if (this.canFire) {
-			that = this
+			var that = this;
 			game.bullets.push(new Bullet(that.pos, that.vel, that.rot));
-			that.canFire = false
-			window.setTimeout(function() { that.canFire = true }, 250)
+			if (!game.rapidFire) {
+				that.canFire = false;
+				window.setTimeout(function() { that.canFire = true }, 250);
+			}
 		};
 	}
 

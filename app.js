@@ -107,10 +107,10 @@ var Asteroids = (function() {
 
 		// update bullets
 		this.bullets = this.bullets.filter( function(bullet) {
-			bullet.updatePos();
+			bullet.updatePos(15);
 			
-			if (bullet.offScreen()) { return false;	}
-			return true
+			if (bullet.timeout === 0) { return false; }
+			return true;
 		});
 
 		// update asteroids
@@ -126,6 +126,7 @@ var Asteroids = (function() {
 					that.bullets.splice(bulletIndex, 1);
 				});
 				that.asteroids.splice(asteroidIndex, 1);
+				SCORE.innerHTML ++
 				return;
 			}
 		});
@@ -161,30 +162,25 @@ var Asteroids = (function() {
 		this.vel = vel;
 		this.rad = rad;
 		this.vertices = vertices || [];
-		this.rot = rot || -(Math.PI / 2);
+		this.rot = (typeof rot === "number") ? rot : -(Math.PI / 2);
 		this.rotVel = rotVel || 0;
 	}
 
-	MovingObject.prototype.updatePos = function() {
+	MovingObject.prototype.updatePos = function(offset) {
 		this.pos['x'] += this.vel['dx'];
 		this.pos['y'] += this.vel['dy'];
-		this.wrapIfOffscreen()
+		this.wrapIfOffscreen(offset);
 	}
 
-	MovingObject.prototype.offScreen = function() {
-		return this.pos['x'] > MAX_POS['x'] || this.pos['x'] < MIN_POS['x']
-		|| this.pos['y'] > MAX_POS['y'] || this.pos['y'] < MIN_POS['y'];
-	}
-
-	MovingObject.prototype.wrapIfOffscreen = function() {
-		var offset = this.rad * 2;
+	MovingObject.prototype.wrapIfOffscreen = function(offset) {
+		if (typeof offset !== 'number') { offset = this.rad; }
 
 		var that = this;
 		['x', 'y'].forEach(function(coord) {
-			if (that.pos[coord] > MAX_POS[coord] + that.rad) {
-				that.pos[coord] -= (MAX_POS[coord] - MIN_POS[coord] + offset)
-			} else if (that.pos[coord] < (MIN_POS[coord] - that.rad)) {
-				that.pos[coord] += (MAX_POS[coord] - MIN_POS[coord] + offset)
+			if (that.pos[coord] > MAX_POS[coord] + offset) {
+				that.pos[coord] -= (MAX_POS[coord] - MIN_POS[coord] + offset * 2);
+			} else if (that.pos[coord] < (MIN_POS[coord] - offset)) {
+				that.pos[coord] += (MAX_POS[coord] - MIN_POS[coord] + offset * 2);
 			}
 		});
 	}
@@ -197,7 +193,7 @@ var Asteroids = (function() {
 
 		var that = this;
 		this.vertices.forEach(function(vertex) {
-			var pos = that._arcPos(vertex)
+			var pos = that.arcPos(vertex)
 			ctx.lineTo(pos.x, pos.y);
 		});
 
@@ -219,6 +215,12 @@ var Asteroids = (function() {
 	}
 
 	MovingObject.prototype.isCollision = function(object) {
+		if (this.proximityCollision(object)) {
+			return this.lineCollision(object);
+		}
+	}
+
+	MovingObject.prototype.proximityCollision = function(object) {
 		return (
 			Math.sqrt(
 				Math.pow(this.pos['x'] - object.pos['x'], 2) +
@@ -227,11 +229,39 @@ var Asteroids = (function() {
 		);
 	}
 
-	MovingObject.prototype._arcPos = function(angle) {
+	function segmentsIntersect(verts) {
+		return true 
+	}
+
+	MovingObject.prototype.lineCollision = function(object) {
+		var iMax = this.vertices.length, jMax = object.vertices.length;
+		var iLast = iMax - 1, jLast = jMax - 1;
+
+		for (var i = 0; i < iMax; i++) {
+			for (var j = 0; j < jMax; j++) {
+				var collision = segmentsIntersect([
+					this.vertexPos(iLast),
+					this.vertexPos(i),
+					object.vertexPos(jLast),
+					object.vertexPos(j)
+				]);
+
+				if (collision) { return true; }
+				iLast = i, jLast = j;
+			}
+		}
+	}
+
+	MovingObject.prototype.arcPos = function(angle) {
 		var x = this.pos['x'] + this.rad * Math.cos(this.rot + angle)
 		var y = this.pos['y'] + this.rad * Math.sin(this.rot + angle)
 		return {x: x, y: y}
 	}
+
+	MovingObject.prototype.vertexPos = function(index) {
+		return this.arcPos(this.vertices[index]);
+	}
+
 
 	//================
 	// Asteroid class
@@ -264,7 +294,7 @@ var Asteroids = (function() {
 			var vertex = Math.PI * (Math.random() * 2 - 1);
 			vertices.push(vertex);
 		}
-		vertices = vertices.sort(function(a, b) { return (a < b) });
+		vertices = vertices.sort(function(a, b) { return a - b });
 
 		var asteroid = new Asteroid(pos, vel, rad, vertices, rot, rotVel);
 
@@ -332,7 +362,7 @@ var Asteroids = (function() {
 
 	Ship.prototype.fireBullet = function(game) {
 		if (this.canFire) {
-			var pos = this._arcPos(this.vertices[1]);
+			var pos = this.arcPos(this.vertices[1]);
 
 			var that = this;
 			game.bullets.push(new Bullet(pos, that.vel, that.rot));
@@ -359,9 +389,15 @@ var Asteroids = (function() {
 		}
 
 		MovingObject.call(this, pos, vel, 3, [0, Math.PI], rot);
+		this.timeout = 80
 	}
 
 	extend(Bullet, MovingObject);
+
+	Bullet.prototype.updatePos = function() {
+		this.timeout --
+		MovingObject.prototype.updatePos.call(this, 15)
+	}
 
 	return {
 		game: new Game()
